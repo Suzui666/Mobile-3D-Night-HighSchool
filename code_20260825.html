@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>Mobile 3D Night High‑School Demo</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{overflow:hidden;background:#000;color:#ffffff;font-family:system-ui, sans-serif}
+canvas{display:block;width:100vw;height:100vh}
+#joystick{position:fixed;left:40px;bottom:40px;width:120px;height:120px;border-radius:50%;background:rgba(255,255,255,0.15);touch-action:none;z-index:10}
+#stick{position:absolute;width:50px;height:50px;border-radius:50%;background:rgba(255,255,255,0.4);left:35px;top:35px}
+#tip{position:fixed;top:12px;left:12px;font-size:13px;z-index:10}
+#audioTip{position:fixed;top:40px;left:12px;font-size:12px;color:#ffaaaa;z-index:10}
+</style>
+</head>
+<body>
+<div id="tip">Swipe screen to look around｜Joystick to move</div>
+<div id="audioTip"></div>
+<div id="joystick"><div id="stick"></div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+<script>
+let scene,camera,renderer;
+let papers=[];
+let clock=new THREE.Clock();
+let move={x:0,y:0};
+let playerSpeed=2.2;
+let yaw=0,pitch=0;
+let touchStartX=0,touchStartY=0;
+
+init();
+loop();
+
+function init(){
+    scene=new THREE.Scene();
+    scene.background=new THREE.Color(0x141622);
+    camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,0.1,200);
+    camera.position.set(0,1.7,0);
+    renderer=new THREE.WebGLRenderer({antialias:false});
+    renderer.setSize(innerWidth,innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const amb=new THREE.AmbientLight(0x3a3a58,0.35);
+    scene.add(amb);
+
+    buildBuilding();
+    buildClassroom();
+
+    const joy=document.getElementById("joystick");
+    const stick=document.getElementById("stick");
+    joy.addEventListener("touchmove",e=>{
+        e.preventDefault();
+        const t=e.touches[0];
+        const rect=joy.getBoundingClientRect();
+        let px=t.clientX-rect.left-60;
+        let py=t.clientY-rect.top-60;
+        const dist=Math.sqrt(px*px+py*py);
+        if(dist>45){ px=px/dist*45; py=py/dist*45; }
+        stick.style.left=(60+px-25)+"px";
+        stick.style.top=(60+py-25)+"px";
+        move.x=px/45;
+        move.y=py/45;
+    });
+    joy.addEventListener("touchend",()=>{
+        move.x=0; move.y=0;
+        stick.style.left="35px"; stick.style.top="35px";
+    });
+
+    renderer.domElement.addEventListener("touchstart",e=>{
+        touchStartX=e.touches[0].clientX;
+        touchStartY=e.touches[0].clientY;
+    });
+    renderer.domElement.addEventListener("touchmove",e=>{
+        const dx=e.touches[0].clientX-touchStartX;
+        const dy=e.touches[0].clientY-touchStartY;
+        yaw-=dx*0.004;
+        pitch=Math.max(-1.1,Math.min(1.1,pitch+dy*0.004));
+        touchStartX=e.touches[0].clientX;
+        touchStartY=e.touches[0].clientY;
+    });
+
+    setInterval(()=>{
+        const el=document.getElementById("audioTip");
+        el.innerText="▷Distant: Hundred‑Day oath voice echoing";
+        setTimeout(()=>el.innerText="",2800);
+    },14000);
+
+    window.onresize=()=>{
+        camera.aspect=innerWidth/innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(innerWidth,innerHeight);
+    }
+}
+
+function buildBuilding(){
+    const floorMat=new THREE.MeshLambertMaterial({color:0x262630});
+    const wallMat=new THREE.MeshLambertMaterial({color:0x333340});
+    const floor=new THREE.Mesh(new THREE.PlaneGeometry(60,22),floorMat);
+    floor.rotation.x=-Math.PI/2;
+    scene.add(floor);
+
+    const wall1=new THREE.Mesh(new THREE.BoxGeometry(60,4,0.4),wallMat);
+    wall1.position.set(0,2,-10.5);
+    scene.add(wall1);
+    const wall2=new THREE.Mesh(new THREE.BoxGeometry(60,4,0.4),wallMat);
+    wall2.position.set(0,2,10.5);
+    scene.add(wall2);
+}
+
+function buildClassroom(){
+    const boardMat=new THREE.MeshLambertMaterial({color:0x0c0e16});
+    const board=new THREE.Mesh(new THREE.BoxGeometry(5,2.4,0.12),boardMat);
+    board.position.set(12,2,-4.5);
+    scene.add(board);
+
+    for(let i=0;i<14;i++){
+        const w=0.2+Math.random()*0.22;
+        const h=0.15+Math.random()*0.3;
+        const d=0.15+Math.random()*0.2;
+        const bMat=new THREE.MeshLambertMaterial({color:new THREE.Color().setHSL(0.08+Math.random()*0.12,0.2,0.28)});
+        const book=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),bMat);
+        book.position.set(10+Math.random()*4, h/2, -2+Math.random()*3.5);
+        book.rotation.y=Math.random()*Math.PI;
+        scene.add(book);
+    }
+
+    for(let i=0;i<24;i++){
+        const pMat=new THREE.MeshLambertMaterial({color:0xe2e2e6,side:THREE.DoubleSide});
+        const paper=new THREE.Mesh(new THREE.PlaneGeometry(0.4,0.3),pMat);
+        paper.position.set(8+Math.random()*6,1.0+Math.random()*2.4,-3+Math.random()*4);
+        paper.userData.baseY=paper.position.y;
+        paper.userData.phase=Math.random()*Math.PI*2;
+        papers.push(paper);
+        scene.add(paper);
+    }
+}
+
+function loop(){
+    requestAnimationFrame(loop);
+    const dt=clock.getDelta();
+    camera.rotation.order="YXZ";
+    camera.rotation.y=yaw;
+    camera.rotation.x=pitch;
+
+    const forward=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
+    const right=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw));
+    camera.position.addScaledVector(forward, -move.y*playerSpeed*dt);
+    camera.position.addScaledVector(right, move.x*playerSpeed*dt);
+
+    for(const p of papers){
+        p.userData.phase+=dt*1.3;
+        p.rotation.x=Math.sin(p.userData.phase)*0.32;
+        p.rotation.z=Math.cos(p.userData.phase*0.7)*0.2;
+        p.position.y=p.userData.baseY+Math.sin(p.userData.phase)*0.2;
+    }
+    renderer.render(scene,camera);
+}
+</script>
+</body>
+</html>
